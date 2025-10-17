@@ -1,0 +1,464 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>ULTIMATE METEOR v2.3</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            -webkit-tap-highlight-color: transparent;
+        }
+        body {
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            background-color: #000;
+            touch-action: manipulation;
+            font-family: 'Arial', sans-serif;
+            height: 100vh;
+        }
+        #gameCanvas {
+            display: block;
+            margin: 0 auto;
+            background-color: #000;
+        }
+        #menu {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            background: radial-gradient(ellipse at center, rgba(0,20,50,0.9) 0%, rgba(0,0,0,0.95) 100%);
+            z-index: 100;
+            color: white;
+            text-align: center;
+        }
+        .menu-title {
+            font-size: 2.5rem;
+            margin-bottom: 2rem;
+            color: #44AAFF;
+            text-shadow: 0 0 10px #0066FF;
+        }
+        .btn {
+            background: linear-gradient(to bottom, #0066FF, #0044CC);
+            color: white;
+            border: none;
+            padding: 1rem 2rem;
+            margin: 1rem;
+            border-radius: 50px;
+            font-size: 1.2rem;
+            min-width: 200px;
+            cursor: pointer;
+        }
+        #controls {
+            position: absolute;
+            bottom: 2rem;
+            width: 100%;
+            display: flex;
+            justify-content: center;
+            gap: 2rem;
+        }
+        .control-btn {
+            background: rgba(255, 255, 255, 0.2);
+            color: white;
+            border: none;
+            width: 4rem;
+            height: 4rem;
+            border-radius: 50%;
+            font-size: 1.5rem;
+        }
+        #shootBtn {
+            background: rgba(255, 0, 0, 0.3);
+        }
+        #pauseBtn {
+            position: absolute;
+            top: 1rem;
+            right: 1rem;
+            background: rgba(0, 102, 255, 0.7);
+            color: white;
+            border: none;
+            width: 3rem;
+            height: 3rem;
+            border-radius: 50%;
+            font-size: 1.2rem;
+            z-index: 50;
+            display: none;
+        }
+        /* Can ve skor container'ı */
+        #gameInfo {
+            position: absolute;
+            top: 1rem;
+            left: 1rem;
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+            color: white;
+            font-size: 1.2rem;
+            z-index: 50;
+        }
+        #lives, #scoreDisplay {
+            background: rgba(0, 0, 0, 0.5);
+            padding: 0.5rem 1rem;
+            border-radius: 10px;
+            border: 1px solid #44AAFF;
+        }
+        .diff-btn {
+            background: rgba(255,255,255,0.1);
+            padding: 0.8rem 1.5rem;
+            margin: 0.5rem;
+            border-radius: 20px;
+            color: white;
+            border: none;
+        }
+        .diff-btn.active {
+            background: #0066FF;
+        }
+        #difficulty-container {
+            display: flex;
+            margin: 1rem 0;
+        }
+        #language-btn {
+            background: transparent;
+            border: 2px solid #44AAFF;
+            color: #44AAFF;
+            margin-top: 1rem;
+        }
+    </style>
+</head>
+<body>
+    <canvas id="gameCanvas"></canvas>
+    
+    <button id="pauseBtn">⏸</button>
+    
+    <!-- Can ve skor container'ı -->
+    <div id="gameInfo">
+        <div id="lives">❤️❤️❤️</div>
+        <div id="scoreDisplay">Score: 0</div>
+    </div>
+    
+    <div id="menu">
+        <h1 class="menu-title">ULTIMATE METEOR</h1>
+        
+        <div id="difficulty-container">
+            <button class="diff-btn active" id="easyBtn">EASY</button>
+            <button class="diff-btn" id="normalBtn">NORMAL</button>
+            <button class="diff-btn" id="hardBtn">HARD</button>
+        </div>
+        
+        <button class="btn" id="startBtn">START GAME</button>
+        <button class="btn" id="language-btn">LANGUAGE: ENGLISH</button>
+    </div>
+    
+    <div id="controls">
+        <button class="control-btn" id="leftBtn">←</button>
+        <button class="control-btn" id="shootBtn">🔴</button>
+        <button class="control-btn" id="rightBtn">→</button>
+    </div>
+
+    <script>
+        // Oyun ayarları
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const menu = document.getElementById('menu');
+        const pauseBtn = document.getElementById('pauseBtn');
+        const livesDisplay = document.getElementById('lives');
+        const scoreDisplay = document.getElementById('scoreDisplay');
+        
+        // Canvas boyutunu ayarla
+        function resizeCanvas() {
+            const size = Math.min(window.innerWidth, window.innerHeight);
+            canvas.width = size * 0.95;
+            canvas.height = size * 1.3;
+        }
+        resizeCanvas();
+        window.addEventListener('resize', resizeCanvas);
+        
+        // Oyun durumu
+        let gameActive = false;
+        let gamePaused = false;
+        let lives = 3;
+        let score = 0;
+        let language = 'English';
+        let difficulty = 'Easy';
+        
+        // Dil metinleri
+        const texts = {
+            English: {
+                start: 'START GAME',
+                easy: 'EASY',
+                normal: 'NORMAL',
+                hard: 'HARD',
+                language: 'LANGUAGE: ENGLISH',
+                lives: 'Lives: ',
+                score: 'Score: ',
+                pause: 'PAUSED'
+            },
+            Turkish: {
+                start: 'OYUNU BAŞLAT',
+                easy: 'KOLAY',
+                normal: 'NORMAL',
+                hard: 'ZOR',
+                language: 'DİL: TÜRKÇE',
+                lives: 'Can: ',
+                score: 'Skor: ',
+                pause: 'DURAKLATILDI'
+            }
+        };
+        
+        // Gemi ayarları
+        const ship = {
+            x: canvas.width / 2,
+            y: canvas.height - 60,
+            width: 40,
+            height: 24,
+            speed: 5,
+            color: '#44AAFF',
+            moveLeft: false,
+            moveRight: false
+        };
+        
+        // Meteorlar
+        let meteors = [];
+        function createMeteor() {
+            const sizes = { Easy: 20, Normal: 15, Hard: 10 };
+            const speeds = { Easy: 2, Normal: 3, Hard: 4 };
+            return {
+                x: Math.random() * canvas.width,
+                y: -30,
+                size: sizes[difficulty],
+                speed: speeds[difficulty]
+            };
+        }
+        
+        // Mermiler
+        let bullets = [];
+        
+        // Çizim fonksiyonları
+        function drawShip() {
+            ctx.fillStyle = ship.color;
+            ctx.beginPath();
+            ctx.moveTo(ship.x, ship.y - ship.height/2);
+            ctx.lineTo(ship.x - ship.width/2, ship.y + ship.height/2);
+            ctx.lineTo(ship.x + ship.width/2, ship.y + ship.height/2);
+            ctx.closePath();
+            ctx.fill();
+        }
+        
+        function drawMeteors() {
+            ctx.fillStyle = '#FF0000';
+            meteors.forEach(meteor => {
+                ctx.beginPath();
+                ctx.arc(meteor.x, meteor.y, meteor.size, 0, Math.PI * 2);
+                ctx.fill();
+            });
+        }
+        
+        function drawBullets() {
+            ctx.fillStyle = '#00FF00';
+            bullets.forEach(bullet => {
+                ctx.fillRect(bullet.x, bullet.y, 5, 15);
+            });
+        }
+        
+        function drawLives() {
+            const lang = texts[language];
+            livesDisplay.textContent = lang.lives + '❤️'.repeat(lives);
+        }
+        
+        function drawScore() {
+            const lang = texts[language];
+            scoreDisplay.textContent = lang.score + score;
+        }
+        
+        // Oyun mantığı
+        function updateGame() {
+            if (gamePaused) return;
+            
+            // Gemi hareketi
+            if (ship.moveLeft && ship.x - ship.width/2 > 0) {
+                ship.x -= ship.speed;
+            }
+            if (ship.moveRight && ship.x + ship.width/2 < canvas.width) {
+                ship.x += ship.speed;
+            }
+            
+            // Meteor hareketi
+            meteors.forEach((meteor, index) => {
+                meteor.y += meteor.speed;
+                
+                // Çarpışma kontrolü
+                if (Math.abs(meteor.x - ship.x) < meteor.size + ship.width/2 && 
+                    Math.abs(meteor.y - ship.y) < meteor.size + ship.height/2) {
+                    meteors.splice(index, 1);
+                    lives--;
+                    drawLives();
+                    if (lives <= 0) {
+                        endGame();
+                    }
+                }
+                
+                // Mermi kontrolü
+                bullets.forEach((bullet, bIndex) => {
+                    if (Math.abs(meteor.x - bullet.x) < meteor.size + 5 && 
+                        Math.abs(meteor.y - bullet.y) < meteor.size + 15) {
+                        meteors.splice(index, 1);
+                        bullets.splice(bIndex, 1);
+                        score += 10;
+                        drawScore();
+                    }
+                });
+            });
+            
+            // Yeni meteor ekle
+            const spawnRates = { Easy: 0.015, Normal: 0.025, Hard: 0.04 };
+            if (Math.random() < spawnRates[difficulty]) {
+                meteors.push(createMeteor());
+            }
+            
+            // Mermi hareketi
+            bullets.forEach((bullet, index) => {
+                bullet.y -= 10;
+                if (bullet.y < 0) bullets.splice(index, 1);
+            });
+        }
+        
+        // Duraklatma fonksiyonu
+        function togglePause() {
+            if (!gameActive) return;
+            
+            gamePaused = !gamePaused;
+            pauseBtn.textContent = gamePaused ? "▶" : "⏸";
+            
+            if (gamePaused) {
+                ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                ctx.fillStyle = '#44AAFF';
+                ctx.font = '30px Arial';
+                ctx.textAlign = 'center';
+                ctx.fillText(texts[language].pause, canvas.width/2, canvas.height/2);
+                ctx.textAlign = 'left';
+            }
+        }
+        
+        // Oyun bitişi
+        function endGame() {
+            gameActive = false;
+            gamePaused = false;
+            menu.style.display = 'flex';
+            pauseBtn.style.display = 'none';
+            lives = 3;
+            score = 0;
+            drawLives();
+            drawScore();
+        }
+        
+        // Oyun döngüsü
+        function gameLoop() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            if (gameActive) {
+                updateGame();
+                drawMeteors();
+                drawBullets();
+                drawShip();
+            }
+            
+            requestAnimationFrame(gameLoop);
+        }
+        
+        // Kontroller
+        function setupControls() {
+            // Sol buton
+            document.getElementById('leftBtn').addEventListener('touchstart', () => {
+                ship.moveLeft = true;
+            });
+            document.getElementById('leftBtn').addEventListener('touchend', () => {
+                ship.moveLeft = false;
+            });
+            
+            // Sağ buton
+            document.getElementById('rightBtn').addEventListener('touchstart', () => {
+                ship.moveRight = true;
+            });
+            document.getElementById('rightBtn').addEventListener('touchend', () => {
+                ship.moveRight = false;
+            });
+            
+            // Ateş butonu
+            document.getElementById('shootBtn').addEventListener('click', () => {
+                if (gameActive && !gamePaused) {
+                    bullets.push({x: ship.x, y: ship.y - 30});
+                }
+            });
+            
+            // Duraklatma butonu
+            pauseBtn.addEventListener('click', togglePause);
+        }
+        
+        // Zorluk seçimi
+        function setupDifficulty() {
+            document.getElementById('easyBtn').addEventListener('click', function() {
+                difficulty = 'Easy';
+                document.querySelectorAll('.diff-btn').forEach(btn => btn.classList.remove('active'));
+                this.classList.add('active');
+            });
+            
+            document.getElementById('normalBtn').addEventListener('click', function() {
+                difficulty = 'Normal';
+                document.querySelectorAll('.diff-btn').forEach(btn => btn.classList.remove('active'));
+                this.classList.add('active');
+            });
+            
+            document.getElementById('hardBtn').addEventListener('click', function() {
+                difficulty = 'Hard';
+                document.querySelectorAll('.diff-btn').forEach(btn => btn.classList.remove('active'));
+                this.classList.add('active');
+            });
+        }
+        
+        // Dil değiştirme
+        document.getElementById('language-btn').addEventListener('click', function() {
+            language = language === 'English' ? 'Turkish' : 'English';
+            updateUI();
+        });
+        
+        // UI güncelleme
+        function updateUI() {
+            const lang = texts[language];
+            document.getElementById('startBtn').textContent = lang.start;
+            document.getElementById('easyBtn').textContent = lang.easy;
+            document.getElementById('normalBtn').textContent = lang.normal;
+            document.getElementById('hardBtn').textContent = lang.hard;
+            document.getElementById('language-btn').textContent = lang.language;
+            drawLives();
+            drawScore();
+        }
+        
+        // Oyun başlatma
+        document.getElementById('startBtn').addEventListener('click', () => {
+            gameActive = true;
+            gamePaused = false;
+            score = 0;
+            lives = 3;
+            meteors = [];
+            bullets = [];
+            menu.style.display = 'none';
+            pauseBtn.style.display = 'block';
+            pauseBtn.textContent = '⏸';
+            ship.x = canvas.width / 2;
+            updateUI();
+        });
+        
+        // Başlangıç
+        setupControls();
+        setupDifficulty();
+        updateUI();
+        gameLoop();
+    </script>
+</body>
+</html>
